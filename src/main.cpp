@@ -1,19 +1,20 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "InternetTime.h"
+//#include "parser.h"
 // Update these with values suitable for your network.
 
-const char *ssid = "Ingenieria WiFi";
-const char *password = "Ing18Perro";
-const char *mqtt_server = "172.16.102.231";
+const char *ssid = "WIBER_DI Paola";
+const char *password = "18663323";
+const char *mqtt_server = "10.0.0.111";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 unsigned long lastMsg = 0;
-#define MSG_BUFFER_SIZE (100)
+#define MSG_BUFFER_SIZE (500)
 char msg[MSG_BUFFER_SIZE];
 String message;
-int value = 0;
+String frame = "";
 
 void setup_wifi()
 {
@@ -31,6 +32,7 @@ void setup_wifi()
   {
     delay(500);
     Serial.print(".");
+    ESP.wdtFeed();
   }
 
   randomSeed(micros());
@@ -50,7 +52,6 @@ void callback(char *topic, byte *payload, unsigned int length)
   {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
 
   // Switch on the LED if an 1 was received as first character
   if ((char)payload[0] == '1')
@@ -96,6 +97,7 @@ void reconnect()
 
 void setup()
 {
+  ESP.wdtDisable();
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the BUILTIN_LED pin as an output
   Serial.begin(115200);
   setup_wifi();
@@ -112,28 +114,34 @@ void loop()
     reconnect();
   }
   client.loop();
+  /**
+   * Obtengo la trama desde el medidor
+   */
+  //frame = getFromTerminal();
 
   unsigned long now = millis();
-  if (now - lastMsg > 10000)
+  if (now - lastMsg > 120000)
   {
     lastMsg = now;
-    value++;
     String time = getTime();
-    Serial.println(time);
+    // Serial.println(time);
     String date = getDate();
-    Serial.println(date);
-  
-    message = (String)value + "," + date + "," + time;
+    // Serial.println(date);
+    if (frame == "")
+    {
+      frame = F("r,250.00,21.99,22.42,1.02,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.50,13.01");
+    }
+    message = frame + "," + date + "," + time;
 
-    Serial.println(message);
     const char *c = message.c_str();
     snprintf(msg, MSG_BUFFER_SIZE, "%s", c);
     Serial.print("Publish message: ");
-    Serial.println(msg);
+    Serial.println(*c);
     client.publish("outTopic", msg);
-    if (value > 100)
-    {
-      value = 0;
-    }
+    memset(msg, 0, sizeof(msg));
   }
+  frame = "";
+  //Serial.print("-");
+  Serial.flush();
+  
 }
