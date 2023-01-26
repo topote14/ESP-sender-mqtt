@@ -1,71 +1,72 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "InternetTime.h"
-//#include "parser.h"
-// Update these with values suitable for your network.
+#include <ESP8266WebServer.h>
+#include <EEPROM.h>
 
-const char *ssid = "WIBER_DI Paola";
-const char *password = "18663323";
+//-------------------VARIABLES GLOBALES--------------------------
+void guardar_conf();
+void escanear();
+void grabar(int addr, String a);
+
+int contconexion = 0;
+unsigned long previousMillis = 0;
+
+char ssid[50];
+char pass[50];
+
+const char *ssidConf = "tutorial";
+const char *passConf = "12345678";
 const char *mqtt_server = "10.0.0.111";
 
+//--------------------------------------------------------------
 WiFiClient espClient;
+ESP8266WebServer server(80);
+//--------------------------------------------------------------
+
 PubSubClient client(espClient);
 unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE (500)
 char msg[MSG_BUFFER_SIZE];
 String message;
 String frame = "";
+String mensaje = "";
+//-----------CODIGO HTML PAGINA DE CONFIGURACION---------------
+String pagina = "<!DOCTYPE html>\n<html>\n<head>\n  <title>Tutorial Eeprom</title>\n  <meta charset='UTF-8'>\n  <style>\n    /* Clase para el formulario */\n    .formulario {\n      margin: 0 auto;\n      width: 300px;\n      text-align: center;\n      border: 1px solid #ccc;\n      background-color: #f2f2f2;\n      padding: 20px;\n    }\n\n    /* Clase para los campos del formulario */\n    .campo {\n      padding: 10px;\n      width: 80%;\n      margin: 10px 0;\n    }\n\n    /* Clase para el botón de envío */\n    .boton-enviar {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Clase para el botón de escanear */\n    .boton-escanear {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Hover effect para los botones */\n    .boton-enviar:hover, .boton-escanear:hover {\n      background-color: #3e8e41;\n    }\n  </style>\n</head>\n<body>\n  <form action='guardar_conf' method='get' class='formulario'>\n    <label>SSID:</label>\n    <br><br>\n    <input class='campo' name='ssid' type='text'>\n    <br>\n    <label>PASSWORD:</label>\n    <br><br>\n    <input class='campo' name='pass' type='password'>\n    <br><br>\n    <input class='boton-enviar' type='submit' value='GUARDAR'>\n    <br><br>\n  </form>\n  <a href='escanear'><button class='boton-escanear'>ESCANEAR</button></a>\n  <br><br>\n</body>\n</html>";
 
+String paginafin = "</body>"
+                   "</html>";
+
+//------------------------SETUP WIFI-----------------------------
 void setup_wifi()
 {
-
-  delay(10);
-  // We start by connecting to a WiFi network
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
+  // Conexión WIFI
+  WiFi.mode(WIFI_STA); // para que no inicie el SoftAP en el modo normal
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED and contconexion < 50)
+  { // Cuenta hasta 50 si no se puede conectar lo cancela
+    ++contconexion;
+    delay(250);
     Serial.print(".");
-    ESP.wdtFeed();
+    digitalWrite(13, HIGH);
+    delay(250);
+    digitalWrite(13, LOW);
   }
-
-  randomSeed(micros());
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-}
-
-void callback(char *topic, byte *payload, unsigned int length)
-{
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++)
+  if (contconexion < 50)
   {
-    Serial.print((char)payload[i]);
-  }
-
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1')
-  {
-    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
+    Serial.println("");
+    Serial.println("WiFi conectado");
+    Serial.println(WiFi.localIP());
+    digitalWrite(13, HIGH);
   }
   else
   {
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
+    Serial.println("");
+    Serial.println("Error de conexion");
+    digitalWrite(13, LOW);
   }
 }
-
+//-------------------RECONECTAR CLIENTE MQTT--------------------
 void reconnect()
 {
   // Loop until we're reconnected
@@ -94,35 +95,183 @@ void reconnect()
     }
   }
 }
+//-------------------RECIBO DE MENSAJE VIA MQTT--------------------
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
 
+  // Switch on the LED if an 1 was received as first character
+  if ((char)payload[0] == '1')
+  {
+    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on (Note that LOW is the voltage level
+                                    // but actually the LED is on; this is because
+                                    // it is active low on the ESP-01)
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
+  }
+}
+//-------------------PAGINA DE CONFIGURACION--------------------
+void paginaconf()
+{
+  server.send(200, "text/html", pagina + mensaje + paginafin);
+}
+
+//--------------------MODO_CONFIGURACION------------------------
+void modoconf()
+{
+
+  delay(100);
+  digitalWrite(13, HIGH);
+  delay(100);
+  digitalWrite(13, LOW);
+  delay(100);
+  digitalWrite(13, HIGH);
+  delay(100);
+  digitalWrite(13, LOW);
+
+  WiFi.softAP(ssidConf, passConf);
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("IP del acces point: ");
+  Serial.println(myIP);
+  Serial.println("WebServer iniciado...");
+
+  server.on("/", paginaconf); // esta es la pagina de configuracion
+
+  server.on("/guardar_conf", guardar_conf); // Graba en la eeprom la configuracion
+
+  server.on("/escanear", escanear); // Escanean las redes wifi disponibles
+
+  server.begin();
+
+  while (true)
+  {
+    server.handleClient();
+  }
+}
+
+//---------------------GUARDAR CONFIGURACION-------------------------
+void guardar_conf()
+{
+
+  Serial.println(server.arg("ssid")); // Recibimos los valores que envia por GET el formulario web
+  grabar(0, server.arg("ssid"));
+  Serial.println(server.arg("pass"));
+  grabar(50, server.arg("pass"));
+
+  mensaje = "Configuracion Guardada...";
+  paginaconf();
+}
+
+//----------------Función para grabar en la EEPROM-------------------
+void grabar(int addr, String a)
+{
+  int tamano = a.length();
+  char inchar[50];
+  a.toCharArray(inchar, tamano + 1);
+  for (int i = 0; i < tamano; i++)
+  {
+    EEPROM.write(addr + i, inchar[i]);
+  }
+  for (int i = tamano; i < 50; i++)
+  {
+    EEPROM.write(addr + i, 255);
+  }
+  EEPROM.commit();
+}
+
+//-----------------Función para leer la EEPROM------------------------
+String leer(int addr)
+{
+  byte lectura;
+  String strlectura;
+  for (int i = addr; i < addr + 50; i++)
+  {
+    lectura = EEPROM.read(i);
+    if (lectura != 255)
+    {
+      strlectura += (char)lectura;
+    }
+  }
+  return strlectura;
+}
+
+//---------------------------ESCANEAR----------------------------
+void escanear()
+{
+  int n = WiFi.scanNetworks(); // devuelve el número de redes encontradas
+  Serial.println("escaneo terminado");
+  if (n == 0)
+  { // si no encuentra ninguna red
+    Serial.println("no se encontraron redes");
+    mensaje = "no se encontraron redes";
+  }
+  else
+  {
+    Serial.print(n);
+    Serial.println(" redes encontradas");
+    mensaje = "";
+    for (int i = 0; i < n; ++i)
+    {
+      // agrega al STRING "mensaje" la información de las redes encontradas
+      mensaje = (mensaje) + "<p>" + String(i + 1) + ": " + WiFi.SSID(i) + " (" + WiFi.RSSI(i) + ") Ch: " + WiFi.channel(i) + " Enc: " + WiFi.encryptionType(i) + " </p>\r\n";
+      // WiFi.encryptionType 5:WEP 2:WPA/PSK 4:WPA2/PSK 7:open network 8:WPA/WPA2/PSK
+      delay(10);
+    }
+    Serial.println(mensaje);
+    paginaconf();
+  }
+}
+
+//------------------------SETUP-----------------------------
 void setup()
 {
-  ESP.wdtDisable();
-  pinMode(LED_BUILTIN, OUTPUT); // Initialize the BUILTIN_LED pin as an output
+
+  pinMode(13, OUTPUT); // D7
+
+  // Inicia Serial
   Serial.begin(115200);
+  Serial.println("");
+
+  EEPROM.begin(512);
+
+  pinMode(14, INPUT); // D5
+  if (digitalRead(14) == 0)
+  {
+    modoconf();
+  }
+
+  leer(0).toCharArray(ssid, 50);
+  leer(50).toCharArray(pass, 50);
+
   setup_wifi();
   client.setServer(mqtt_server, 1234);
   client.setCallback(callback);
   setUpTime();
 }
 
+//--------------------------LOOP--------------------------------
 void loop()
 {
-  ESP.wdtFeed();
   if (!client.connected())
   {
     reconnect();
   }
   client.loop();
-  /**
-   * Obtengo la trama desde el medidor
-   */
-  //frame = getFromTerminal();
 
-  unsigned long now = millis();
-  if (now - lastMsg > 120000)
-  {
-    lastMsg = now;
+
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= 120000)
+  { // envia la temperatura cada 5 segundos
+    previousMillis = currentMillis;
     String time = getTime();
     // Serial.println(time);
     String date = getDate();
@@ -141,7 +290,6 @@ void loop()
     memset(msg, 0, sizeof(msg));
   }
   frame = "";
-  //Serial.print("-");
+  // Serial.print("-");
   Serial.flush();
-  
 }
