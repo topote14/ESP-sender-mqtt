@@ -1,5 +1,5 @@
 #include <ESP8266WiFi.h>
-#include <WifiUDP.h>
+#include <WiFiUdp.h>
 #include <NTPClient.h>
 #include <Time.h>
 #include <TimeLib.h>
