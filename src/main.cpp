@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "InternetTime.h"
+#include "parser.h"
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <parser.h>
@@ -356,6 +357,7 @@ void loop()
     if (Serial.available())
       Serial.read();
     count = 0;
+
   }
   internet = true;
   // Si hay datos en el puerto serie, me fijo si se activo el timer. Si aún no se activo, los descarto (sino se acumulan y se bugea todo).

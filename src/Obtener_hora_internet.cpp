@@ -87,6 +87,7 @@ String getDate(bool internet)
     // Print complete date:
     String currentDate = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay);
 
+
     return (currentDate);
   }
   else
