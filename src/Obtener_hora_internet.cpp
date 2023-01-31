@@ -1,30 +1,24 @@
 #include "InternetTime.h"
 
-/*
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp8266-nodemcu-date-time-ntp-client-server-arduino/
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-  
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*/
 #include <WiFiUdp.h>
 
 // Define NTP Client to get time
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 
-//Week Days
-String weekDays[7]={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+// Week Days
+String weekDays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-//Month names
-String months[12]={"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+// Month names
+String months[12] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
-void setUpTime() {
+int lastHour = 0;
+int lastMinute = 0;
+int lastSecond = 0;
 
-// Initialize a NTPClient to get time
+void setUpTime()
+{
+  // Initialize a NTPClient to get time
   timeClient.begin();
   // Set offset time in seconds to adjust for your timezone, for example:
   // GMT +1 = 3600
@@ -34,37 +28,76 @@ void setUpTime() {
   timeClient.setTimeOffset(-10800);
 }
 
-String getTime()
+String getTime(bool internet)
 {
-  timeClient.update();
-  String formattedTime = timeClient.getFormattedTime(); 
-  int currentHour = timeClient.getHours();
-  int currentMinute = timeClient.getMinutes();   
-  int currentSecond = timeClient.getSeconds();
-  String horaActual = (String)currentHour +"-"+ (String)currentMinute +"-"+ (String)currentSecond;
-  return(horaActual);
+  if (internet)
+  {
+    Serial.println("Calculando la hora CON internet...");
+    timeClient.update();
+    String formattedTime = timeClient.getFormattedTime();
+    int currentHour = timeClient.getHours();
+    int currentMinute = timeClient.getMinutes();
+    int currentSecond = timeClient.getSeconds();
+    lastHour = currentHour;
+    lastMinute = currentMinute;
+    lastSecond = currentSecond;
+    String horaActual = (String)currentHour + "-" + (String)currentMinute + "-" + (String)currentSecond;
+    Serial.println(horaActual);
+    return (horaActual);
+  }
+  else
+  {
+    lastSecond += 10;
+    if (lastSecond >= 60)
+    {
+      lastMinute += lastSecond / 60;
+      lastSecond = lastSecond % 60;
+    }
+    if (lastMinute >= 60)
+    {
+      lastHour += lastMinute / 60;
+      lastMinute = lastMinute % 60;
+    }
+    if (lastHour >= 24)
+    {
+      lastHour = lastHour % 24;
+    }
+    String horaActual = (String)lastHour + "-" + (String)lastMinute + "-" + (String)lastSecond;
+    Serial.println("Calculando la hora SIN internet...");
+    Serial.println(horaActual);
+    return (horaActual);
+  }
 }
 
-String getDate() {
-  timeClient.update();
-  time_t epochTime = timeClient.getEpochTime(); 
- // String formattedTime = timeClient.getFormattedTime();
-  int currentHour = timeClient.getHours();
-  int currentMinute = timeClient.getMinutes();   
-  int currentSecond = timeClient.getSeconds();
-  String weekDay = weekDays[timeClient.getDay()];
+String getDate(bool internet)
+{
+  static time_t lastKnownEpoch = 0;
+  if (internet)
+  {
+    timeClient.update();
+    time_t epochTime = timeClient.getEpochTime();
+    lastKnownEpoch = epochTime;
+    String weekDay = weekDays[timeClient.getDay()];
+    // Get a time structure
+    struct tm *ptm = gmtime((time_t *)&epochTime);
+    int monthDay = ptm->tm_mday;
+    int currentMonth = ptm->tm_mon + 1;
+    String currentMonthName = months[currentMonth - 1];
+    int currentYear = ptm->tm_year + 1900;
+    // Print complete date:
+    String currentDate = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay);
 
-  //Get a time structure
-  struct tm *ptm = gmtime ((time_t *)&epochTime); 
-
-  int monthDay = ptm->tm_mday;
-  int currentMonth = ptm->tm_mon+1;
-  String currentMonthName = months[currentMonth-1];
-  int currentYear = ptm->tm_year+1900;
-  //Print complete date:
-  String currentDate = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay);
-
-
-  return(currentDate);
+    return (currentDate);
+  }
+  else
+  {
+    // calculate the time since last update (update every 10 seconds)
+    lastKnownEpoch += 10;
+    struct tm *ptm = gmtime((time_t *)&lastKnownEpoch); 
+    int monthDay = ptm->tm_mday;
+    int currentMonth = ptm->tm_mon + 1;
+    int currentYear = ptm->tm_year + 1900;
+    String currentDate = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay);
+    return currentDate;
+  }
 }
-

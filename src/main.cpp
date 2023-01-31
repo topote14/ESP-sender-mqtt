@@ -25,6 +25,7 @@ const char *passConf = "12345678";
 const char *mqtt_server = "10.0.0.111";
 
 bool reconnected = false;
+bool internet = true;
 //--------------------------------------------------------------
 WiFiClient espClient;
 ESP8266WebServer server(80);
@@ -88,7 +89,7 @@ void reconnect()
   // Loop until we're reconnected
   while (!client.connected())
   {
-
+    internet = false;
     //-------------------Read and accumulate data when disconnected------------------------------
     currentMillis = millis();
     if (Serial.available())
@@ -96,8 +97,8 @@ void reconnect()
       if (currentMillis - timer1 >= TIME_INTERVAL) // if data is available and timer is expired
       {
         timer1 = currentMillis; // restart timer
-        addData(readData());
         reconnected = false;
+        addData(readData());
       }
       else if (currentMillis - timer1 < TIME_INTERVAL)
       {
@@ -271,9 +272,10 @@ void escanear()
 //---------------------------LEER DATOS----------------------------
 char *readData()
 {
+  // si hay internet, saco fecha y hora de internet
   frame = getFromTerminal(); // get data from terminal
-  String time = getTime();
-  String date = getDate();
+    String time = getTime(internet);
+  String date = getDate(internet);
   message = frame + date + "," + time;        // concatenate data
   const char *c = message.c_str();            // convert to char
   snprintf(msg, MSG_BUFFER_SIZE, "%s", c);    // convert to char array
@@ -349,12 +351,13 @@ void loop()
       snprintf(msgAux2, MSG_BUFFER_SIZE, "%s", c);
       sendData(msgAux2);
       memset(msg, 0, sizeof(msgAux2)); // clear buffer
-      delay(1000);
+      delay(50);
     }
-    if(Serial.available()) Serial.read();
+    if (Serial.available())
+      Serial.read();
     count = 0;
   }
-
+  internet = true;
   // Si hay datos en el puerto serie, me fijo si se activo el timer. Si aún no se activo, los descarto (sino se acumulan y se bugea todo).
   // Si ya se activo, envio los datos.
   if (Serial.available())

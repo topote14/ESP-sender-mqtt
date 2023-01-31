@@ -8,8 +8,8 @@
 /**
  * Obtener la hora de internet. 
 */
-String getTime();
+String getTime(bool internet);
 
-String getDate();
+String getDate(bool internet);
 
 void setUpTime();
