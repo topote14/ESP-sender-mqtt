@@ -11,8 +11,11 @@ void escanear();
 void grabar(int addr, String a);
 
 int contconexion = 0;
-unsigned long previousMillis = 0;
 unsigned long currentMillis = 0;
+unsigned long timer1 = 0;
+unsigned long timer2 = 0;
+unsigned long timer3 = 0;
+#define TIME_INTERVAL (10000)
 
 char ssid[50];
 char pass[50];
@@ -21,6 +24,7 @@ const char *ssidConf = "tutorial";
 const char *passConf = "12345678";
 const char *mqtt_server = "10.0.0.111";
 
+bool reconnected = false;
 //--------------------------------------------------------------
 WiFiClient espClient;
 ESP8266WebServer server(80);
@@ -31,14 +35,22 @@ unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE (500)
 char msg[MSG_BUFFER_SIZE];
 char msgAux[MSG_BUFFER_SIZE];
+char msgAux2[MSG_BUFFER_SIZE];
+String buffMsg[50];
 String message;
 String frame = "";
 String mensaje = "";
+
 //-----------CODIGO HTML PAGINA DE CONFIGURACION---------------
 String pagina = "<!DOCTYPE html>\n<html>\n<head>\n  <title>Tutorial Eeprom</title>\n  <meta charset='UTF-8'>\n  <style>\n    /* Clase para el formulario */\n    .formulario {\n      margin: 0 auto;\n      width: 300px;\n      text-align: center;\n      border: 1px solid #ccc;\n      background-color: #f2f2f2;\n      padding: 20px;\n    }\n\n    /* Clase para los campos del formulario */\n    .campo {\n      padding: 10px;\n      width: 80%;\n      margin: 10px 0;\n    }\n\n    /* Clase para el botón de envío */\n    .boton-enviar {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Clase para el botón de escanear */\n    .boton-escanear {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Hover effect para los botones */\n    .boton-enviar:hover, .boton-escanear:hover {\n      background-color: #3e8e41;\n    }\n  </style>\n</head>\n<body>\n  <form action='guardar_conf' method='get' class='formulario'>\n    <label>SSID:</label>\n    <br><br>\n    <input class='campo' name='ssid' type='text'>\n    <br>\n    <label>PASSWORD:</label>\n    <br><br>\n    <input class='campo' name='pass' type='password'>\n    <br><br>\n    <input class='boton-enviar' type='submit' value='GUARDAR'>\n    <br><br>\n  </form>\n  <a href='escanear'><button class='boton-escanear'>ESCANEAR</button></a>\n  <br><br>\n</body>\n</html>";
 
 String paginafin = "</body>"
                    "</html>";
+
+char *readData();
+void sendData(char *msg);
+int count = 0;
+void addData(char *msg);
 
 //------------------------SETUP WIFI-----------------------------
 void setup_wifi()
@@ -72,40 +84,52 @@ void setup_wifi()
 //-------------------RECONECTAR CLIENTE MQTT--------------------
 void reconnect()
 {
+
   // Loop until we're reconnected
   while (!client.connected())
   {
-    currentMillis = millis(); // inicio el timer
 
-    if (currentMillis - previousMillis >= 10000)
+    //-------------------Read and accumulate data when disconnected------------------------------
+    currentMillis = millis();
+    if (Serial.available())
     {
-      // readAndSendData();
+      if (currentMillis - timer1 >= TIME_INTERVAL) // if data is available and timer is expired
+      {
+        timer1 = currentMillis; // restart timer
+        addData(readData());
+        reconnected = false;
+      }
+      else if (currentMillis - timer1 < TIME_INTERVAL)
+      {
+        Serial.read();
+        // Serial.println("Dato descartado");
+      }
     }
+    //-------------------------------------------------------------------------------------------
 
-    Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
-    // Attempt to connect
-    if (client.connect(clientId.c_str()))
-
-    // SI NO HAY INTERNET, ACUMULO LA TRAMA
-
+    // Attempt to connect every 5 seconds
+    if (currentMillis - timer2 >= 5000)
     {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("outTopic", "INIT");
-      // ... and resubscribe
-      client.subscribe("inTopic");
-    }
-    else
-    {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
+      timer2 = currentMillis; // restart timer
 
-      delay(5000);
+      Serial.print("Attempting MQTT connection...");
+      // Create a random client ID
+      String clientId = "ESP8266Client-";
+      clientId += String(random(0xffff), HEX);
+      if (client.connect(clientId.c_str()))
+      {
+        Serial.println("connected");
+        // Once connected, publish an announcement...
+        client.publish("outTopic", "INIT");
+        // ... and resubscribe
+        client.subscribe("inTopic");
+      }
+      else
+      {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+      }
     }
   }
 }
@@ -244,10 +268,9 @@ void escanear()
   }
 }
 
-//---------------------------LEER Y ENVIAR DATOS----------------------------
+//---------------------------LEER DATOS----------------------------
 char *readData()
 {
-  Serial.println("TIMER ACTIVADO");
   frame = getFromTerminal(); // get data from terminal
   String time = getTime();
   String date = getDate();
@@ -255,24 +278,29 @@ char *readData()
   const char *c = message.c_str();            // convert to char
   snprintf(msg, MSG_BUFFER_SIZE, "%s", c);    // convert to char array
   snprintf(msgAux, MSG_BUFFER_SIZE, "%s", c); // convert to char array
-  Serial.print("Publish message: ");          // print message
-  Serial.println(*c);                         // print message
-
-  /*
-  client.publish("outTopic", msg); // publish message
-  memset(msg, 0, sizeof(msg));     // clear buffer
-  Serial.flush();
-  */
-  return (msgAux); // return message
+  memset(msg, 0, sizeof(msg));                // clear buffer
+  return (msgAux);                            // return message
 }
-bool sendData(char *msg)
+
+//---------------------------ENVIAR DATOS----------------------------
+void sendData(char *msg)
 {
+  Serial.println("Send Data");
   client.publish("outTopic", msg); // publish message
   memset(msg, 0, sizeof(msg));     // clear buffer
   Serial.flush();
-  return true;
 }
 
+//---------------------------AGREGAR DATOS----------------------------
+void addData(char *msg)
+{
+  Serial.print("Added ");
+  Serial.print(count);
+  Serial.print(" strings: ");
+  buffMsg[count] = msg;
+  count++;
+  Serial.println(msg);
+}
 //------------------------SETUP-----------------------------
 void setup()
 {
@@ -296,29 +324,47 @@ void setup()
   client.setServer(mqtt_server, 1234);
   client.setCallback(callback);
   setUpTime();
+  if (Serial.available())
+    Serial.read(); // lee por si hay algo en el buffer del serial.
 }
 
 //--------------------------LOOP--------------------------------
 void loop()
 {
+  reconnected = true;
   if (!client.connected())
   {
     reconnect();
   }
   client.loop();
 
-  unsigned long currentMillis = millis();
+  currentMillis = millis();
+
+  if (!reconnected)
+  {
+    Serial.println("Reconnected");
+    for (int i = 0; i < count; i++)
+    {
+      const char *c = buffMsg[i].c_str();
+      snprintf(msgAux2, MSG_BUFFER_SIZE, "%s", c);
+      sendData(msgAux2);
+      memset(msg, 0, sizeof(msgAux2)); // clear buffer
+      delay(1000);
+    }
+    if(Serial.available()) Serial.read();
+    count = 0;
+  }
 
   // Si hay datos en el puerto serie, me fijo si se activo el timer. Si aún no se activo, los descarto (sino se acumulan y se bugea todo).
-  //Si ya se activo, envio los datos.
+  // Si ya se activo, envio los datos.
   if (Serial.available())
   {
-    if (currentMillis - previousMillis >= 10000) // if data is available and timer is expired
+    if (currentMillis - timer1 >= TIME_INTERVAL) // if data is available and timer is expired
     {
-      previousMillis = currentMillis; // restart timer
+      timer1 = currentMillis; // restart timer
       sendData(readData());
     }
-    else if (currentMillis - previousMillis < 10000)
+    else if (currentMillis - timer1 < TIME_INTERVAL)
     {
       Serial.read();
     }
