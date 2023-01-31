@@ -3,6 +3,7 @@
 #include "InternetTime.h"
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
+#include <parser.h>
 
 //-------------------VARIABLES GLOBALES--------------------------
 void guardar_conf();
@@ -11,6 +12,7 @@ void grabar(int addr, String a);
 
 int contconexion = 0;
 unsigned long previousMillis = 0;
+unsigned long currentMillis = 0;
 
 char ssid[50];
 char pass[50];
@@ -28,6 +30,7 @@ PubSubClient client(espClient);
 unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE (500)
 char msg[MSG_BUFFER_SIZE];
+char msgAux[MSG_BUFFER_SIZE];
 String message;
 String frame = "";
 String mensaje = "";
@@ -72,12 +75,22 @@ void reconnect()
   // Loop until we're reconnected
   while (!client.connected())
   {
+    currentMillis = millis(); // inicio el timer
+
+    if (currentMillis - previousMillis >= 10000)
+    {
+      // readAndSendData();
+    }
+
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
     String clientId = "ESP8266Client-";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
     if (client.connect(clientId.c_str()))
+
+    // SI NO HAY INTERNET, ACUMULO LA TRAMA
+
     {
       Serial.println("connected");
       // Once connected, publish an announcement...
@@ -91,6 +104,7 @@ void reconnect()
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
       // Wait 5 seconds before retrying
+
       delay(5000);
     }
   }
@@ -230,12 +244,39 @@ void escanear()
   }
 }
 
+//---------------------------LEER Y ENVIAR DATOS----------------------------
+char *readData()
+{
+  Serial.println("TIMER ACTIVADO");
+  frame = getFromTerminal(); // get data from terminal
+  String time = getTime();
+  String date = getDate();
+  message = frame + date + "," + time;        // concatenate data
+  const char *c = message.c_str();            // convert to char
+  snprintf(msg, MSG_BUFFER_SIZE, "%s", c);    // convert to char array
+  snprintf(msgAux, MSG_BUFFER_SIZE, "%s", c); // convert to char array
+  Serial.print("Publish message: ");          // print message
+  Serial.println(*c);                         // print message
+
+  /*
+  client.publish("outTopic", msg); // publish message
+  memset(msg, 0, sizeof(msg));     // clear buffer
+  Serial.flush();
+  */
+  return (msgAux); // return message
+}
+bool sendData(char *msg)
+{
+  client.publish("outTopic", msg); // publish message
+  memset(msg, 0, sizeof(msg));     // clear buffer
+  Serial.flush();
+  return true;
+}
+
 //------------------------SETUP-----------------------------
 void setup()
 {
-
   pinMode(13, OUTPUT); // D7
-
   // Inicia Serial
   Serial.begin(115200);
   Serial.println("");
@@ -266,30 +307,20 @@ void loop()
   }
   client.loop();
 
-
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= 120000)
-  { // envia la temperatura cada 5 segundos
-    previousMillis = currentMillis;
-    String time = getTime();
-    // Serial.println(time);
-    String date = getDate();
-    // Serial.println(date);
-    if (frame == "")
+  // Si hay datos en el puerto serie, me fijo si se activo el timer. Si aún no se activo, los descarto (sino se acumulan y se bugea todo).
+  //Si ya se activo, envio los datos.
+  if (Serial.available())
+  {
+    if (currentMillis - previousMillis >= 10000) // if data is available and timer is expired
     {
-      frame = F("r,250.00,21.99,22.42,1.02,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.50,13.01");
+      previousMillis = currentMillis; // restart timer
+      sendData(readData());
     }
-    message = frame + "," + date + "," + time;
-
-    const char *c = message.c_str();
-    snprintf(msg, MSG_BUFFER_SIZE, "%s", c);
-    Serial.print("Publish message: ");
-    Serial.println(*c);
-    client.publish("outTopic", msg);
-    memset(msg, 0, sizeof(msg));
+    else if (currentMillis - previousMillis < 10000)
+    {
+      Serial.read();
+    }
   }
-  frame = "";
-  // Serial.print("-");
-  Serial.flush();
 }
