@@ -8,10 +8,9 @@ String getFromTerminal()
   trama = "";
   trama = Serial.readString(); // leo todo
 
-  StringSplitter *split = new StringSplitter(trama, 's', 35); // separo para que lea hasta la fase S
-  trama = split->getItemAtIndex(0);                           // guardo lo que separé hasta la "s"
-  trama.remove(trama.length() - 2);                           // al final del string da cada fase guarda dos \t => se sacan
-  
+  StringSplitter *split = new StringSplitter(trama,'\n', 35); // separo para que lea hasta la fase S
+  trama = split->getItemAtIndex(0);                            // guardo lo que separé hasta la "s"
+  trama.remove(trama.length() - 2);                            // al final del string da cada fase guarda dos \t => se sacan
 
   // empiezo a separar por items
   StringSplitter *splitter = new StringSplitter(trama, '\t', 35); // new StringSplitter(string_to_split, delimiter, limit) Max 5 strings
@@ -24,15 +23,18 @@ String getFromTerminal()
 
     if (item != "") // si parseo un string vacio
     {
-      if (i != 14)
+      if (i != 29)
       {
         item = item + ','; // al ultimo valor le borro la coma porque hace bardo despues en el server
       }
       trama = trama + item;
     }
   }
+
+  delete splitter; // libero la memoria asignada para splitter
+  delete split;
   Serial.flush();
   // trama = "Fase[°],Vrms[V],Irms[A],Ipk[A],Imax[A],Ih1[A],Ih2[A],Ih3[A],Ih4[A],Ih5[A],Ih6[A],Ih7[A],Ithd[%],Pa[kW],E[kWh]\n"+trama;
-  
+
   return (trama);
 }

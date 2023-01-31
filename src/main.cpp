@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "InternetTime.h"
+#include "parser.h"
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 
@@ -31,6 +32,7 @@ char msg[MSG_BUFFER_SIZE];
 String message;
 String frame = "";
 String mensaje = "";
+
 //-----------CODIGO HTML PAGINA DE CONFIGURACION---------------
 String pagina = "<!DOCTYPE html>\n<html>\n<head>\n  <title>Tutorial Eeprom</title>\n  <meta charset='UTF-8'>\n  <style>\n    /* Clase para el formulario */\n    .formulario {\n      margin: 0 auto;\n      width: 300px;\n      text-align: center;\n      border: 1px solid #ccc;\n      background-color: #f2f2f2;\n      padding: 20px;\n    }\n\n    /* Clase para los campos del formulario */\n    .campo {\n      padding: 10px;\n      width: 80%;\n      margin: 10px 0;\n    }\n\n    /* Clase para el botón de envío */\n    .boton-enviar {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Clase para el botón de escanear */\n    .boton-escanear {\n      background-color: #4CAF50;\n      color: white;\n      padding: 10px 20px;\n      border: none;\n      cursor: pointer;\n    }\n\n    /* Hover effect para los botones */\n    .boton-enviar:hover, .boton-escanear:hover {\n      background-color: #3e8e41;\n    }\n  </style>\n</head>\n<body>\n  <form action='guardar_conf' method='get' class='formulario'>\n    <label>SSID:</label>\n    <br><br>\n    <input class='campo' name='ssid' type='text'>\n    <br>\n    <label>PASSWORD:</label>\n    <br><br>\n    <input class='campo' name='pass' type='password'>\n    <br><br>\n    <input class='boton-enviar' type='submit' value='GUARDAR'>\n    <br><br>\n  </form>\n  <a href='escanear'><button class='boton-escanear'>ESCANEAR</button></a>\n  <br><br>\n</body>\n</html>";
 
@@ -266,26 +268,21 @@ void loop()
   }
   client.loop();
 
+  frame = getFromTerminal();
 
+  //Serial.println(frame);
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= 120000)
+  if (currentMillis - previousMillis >= 50000)
   { // envia la temperatura cada 5 segundos
     previousMillis = currentMillis;
     String time = getTime();
-    // Serial.println(time);
     String date = getDate();
-    // Serial.println(date);
-    if (frame == "")
-    {
-      frame = F("r,250.00,21.99,22.42,1.02,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.50,13.01");
-    }
+    
     message = frame + "," + date + "," + time;
-
     const char *c = message.c_str();
     snprintf(msg, MSG_BUFFER_SIZE, "%s", c);
-    Serial.print("Publish message: ");
-    Serial.println(*c);
+    Serial.print("Message published");
     client.publish("outTopic", msg);
     memset(msg, 0, sizeof(msg));
   }
