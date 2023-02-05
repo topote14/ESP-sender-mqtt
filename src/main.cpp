@@ -277,7 +277,7 @@ char *readData()
   frame = getFromTerminal(); // get data from terminal
   String time = getTime(internet);
   String date = getDate(internet);
-  message = frame + date + "," + time;        // concatenate data
+  message = frame + "," + date + "," + time;        // concatenate data
   const char *c = message.c_str();            // convert to char
   snprintf(msg, MSG_BUFFER_SIZE, "%s", c);    // convert to char array
   snprintf(msgAux, MSG_BUFFER_SIZE, "%s", c); // convert to char array
