@@ -32,7 +32,6 @@ String getTime(bool internet)
 {
   if (internet)
   {
-    Serial.println("Calculando la hora CON internet...");
     timeClient.update();
     String formattedTime = timeClient.getFormattedTime();
     int currentHour = timeClient.getHours();
@@ -42,7 +41,6 @@ String getTime(bool internet)
     lastMinute = currentMinute;
     lastSecond = currentSecond;
     String horaActual = (String)currentHour + "-" + (String)currentMinute + "-" + (String)currentSecond;
-    Serial.println(horaActual);
     return (horaActual);
   }
   else
@@ -63,8 +61,6 @@ String getTime(bool internet)
       lastHour = lastHour % 24;
     }
     String horaActual = (String)lastHour + "-" + (String)lastMinute + "-" + (String)lastSecond;
-    Serial.println("Calculando la hora SIN internet...");
-    Serial.println(horaActual);
     return (horaActual);
   }
 }

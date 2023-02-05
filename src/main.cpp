@@ -22,7 +22,7 @@ char pass[50];
 
 const char *ssidConf = "tutorial";
 const char *passConf = "12345678";
-const char *mqtt_server = "10.0.0.111";
+const char *mqtt_server = "34.234.201.52";
 
 bool reconnected = false;
 bool internet = true;
@@ -274,7 +274,7 @@ char *readData()
 {
   // si hay internet, saco fecha y hora de internet
   frame = getFromTerminal(); // get data from terminal
-    String time = getTime(internet);
+  String time = getTime(internet);
   String date = getDate(internet);
   message = frame + date + "," + time;        // concatenate data
   const char *c = message.c_str();            // convert to char
@@ -287,7 +287,6 @@ char *readData()
 //---------------------------ENVIAR DATOS----------------------------
 void sendData(char *msg)
 {
-  Serial.println("Send Data");
   client.publish("outTopic", msg); // publish message
   memset(msg, 0, sizeof(msg));     // clear buffer
   Serial.flush();
